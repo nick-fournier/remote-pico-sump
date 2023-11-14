@@ -11,17 +11,17 @@ trigger = Pin(4, Pin.OUT)
 echo = Pin(5, Pin.IN)
 
  
-def get_temperature():
+def get_temperature(verbose = False):
     
     temperature_value = sensor_temp.read_u16() * conversion_factor 
     temperature_Celcius = 27 - (temperature_value - 0.706)/0.00172169/ 8 
-    utime.sleep(2)
     
-    print("The temperature is ", temperature_Celcius, "degrees Celsius")
+    if verbose == True:
+        print("The temperature is ", temperature_Celcius, "degrees Celsius")
     
     return temperature_Celcius
 
-def get_distance():
+def get_distance(verbose = False):
     trigger.low()
    
     utime.sleep_us(2)
@@ -41,7 +41,9 @@ def get_distance():
         
     timepassed = signalon - signaloff
     distance = (timepassed * 0.0343) / 2
-    print("The distance from object is ", distance, "cm")
+    
+    if verbose == True:
+        print("The distance from object is ", distance, "cm")
     
     return distance
    

@@ -3,11 +3,13 @@ import time
 from env import SSID, PASSWORD
 
 
+wlan = network.WLAN(network.STA_IF)
+
 def connect_to_network():
     
     # Connect to the network
-    wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
+    wlan.config(pm = 0xa11140)  # Disable power-save mode
     wlan.connect(ssid=SSID, key=PASSWORD)    
     
     # Wait for connect or fail
