@@ -1,16 +1,50 @@
 import json
-from machine import Pin
+import time
 import asyncio
-
-from networking import connect_to_network
+import network
+import ubinascii
+from machine import Pin
+from env import SSID, PASSWORD
 from clock import get_datetime_string, sync_time
 from reading import get_temperature, get_distance
 
 
-# led = Pin(15, Pin.OUT)
+heartbeat = 60
+wlan = network.WLAN(network.STA_IF)
 led = Pin("LED", Pin.OUT, value=0)
 
 class PicoSumpServer:
+    
+    def connect_to_network(self):
+        
+        # Connect to the network
+        wlan.active(True)        
+        wlan.config(pm = 0xa11140)  # Disable power-save mode
+        wlan.connect(ssid=SSID, key=PASSWORD)
+        mac = ubinascii.hexlify(wlan.config('mac'),':').decode()
+        
+        # Wait for connect or fail
+        wait = 10
+        while wait > 0:
+            if wlan.status() < 0 or wlan.status() >= 3:
+                break
+            wait -= 1
+            print('waiting for connection...')
+            time.sleep(2)
+        
+        # Handle connection error
+        if wlan.status() != 3:
+            raise RuntimeError('wifi connection failed')
+        else:
+            print('connected')
+            
+            ip = wlan.ifconfig()[0]
+            info = {'ip': ip, 'mac': mac}
+            
+            print('IP: ', ip, 'MAC: ', mac)
+        
+        self.netinfo = info
+
 
     async def serve_client(self, reader, writer):
         print("Client connected")
@@ -29,12 +63,13 @@ class PicoSumpServer:
         print("Client disconnected")
         
             
-    async def read_sensors(self, period = 5):
+    async def read_sensors(self, period = heartbeat):
         while True:
             self.current_reading = {
                 'timestamp': get_datetime_string(),
                 'temperature': get_temperature(),
-                'distance': get_distance()            
+                'distance': get_distance(),
+                'macid': self.netinfo['mac']
             }
             
             time = self.current_reading['timestamp']
@@ -49,13 +84,13 @@ class PicoSumpServer:
     async def main(self):
         
         print('Connecting to Network...')
-        connect_to_network()
-        
+        self.connect_to_network()
+                
         # Sync the clock
         sync_time()
         
         # Start the sensor reading task
-        asyncio.create_task(self.read_sensors(period = 5))
+        asyncio.create_task(self.read_sensors())
         
         print('Setting up webserver...')
         asyncio.create_task(asyncio.start_server(self.serve_client, "0.0.0.0", 80))
@@ -66,7 +101,7 @@ class PicoSumpServer:
             led.on()
             await asyncio.sleep(0.25)
             led.off()
-            await asyncio.sleep(5)
+            await asyncio.sleep(heartbeat - 0.25)
 
 # Instantiate the webserver class
 WebServer = PicoSumpServer()

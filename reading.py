@@ -4,7 +4,7 @@ import utime
 
 # Temperature Sensor
 sensor_temp = machine.ADC(4)
-conversion_factor = 3.3 / (65535)
+conversion = 3.4 / 65535
 
 # Distance Sensor
 trigger = Pin(4, Pin.OUT)
@@ -13,13 +13,13 @@ echo = Pin(5, Pin.IN)
  
 def get_temperature(verbose = False):
     
-    temperature_value = sensor_temp.read_u16() * conversion_factor 
-    temperature_Celcius = 27 - (temperature_value - 0.706)/0.00172169/ 8 
+    adc_volt = sensor_temp.read_u16() * conversion
+    temperature_celcius = 27 - (adc_volt - 0.706) / 0.001721
     
     if verbose == True:
-        print("The temperature is ", temperature_Celcius, "degrees Celsius")
+        print("The temperature is ", temperature_celcius, "degrees Celsius")
     
-    return temperature_Celcius
+    return temperature_celcius
 
 def get_distance(verbose = False):
     trigger.low()
