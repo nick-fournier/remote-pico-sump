@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Include Bootstrap CSS with Darkly theme -->
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script type="text/javascript" src="static/script.js"></script>
+  
+  <title>Sump Sensor Portal</title>
+  <style>
+    body {
+      background-color: #212529; /* Dark background color */
+      color: white; /* Text color */
+    }
+    .container {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container mt-4">
+  <div id="sump-id"></div>
+  <div id="time-series-plot"></div>    
+</div>
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <label for="pitDepth" style="color: white;">Set Pit Depth:</label>
+      <input type="number" id="pitDepth" value="" style="color: black; width: 4em;">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <label for="alarmLevel" style="color: white;">Set Alarm Level:</label>
+      <input type="number" id="alarmLevel" value="" style="color: black; width: 4em;">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <label for="sumpId" style="color: white;">Set Sump ID:</label>
+      <input type="text" id="sumpId" value="" style="color: black; width: 26em;">
+    </div>
+  </div>
+
+  <button onclick="updateSettings()" class="btn btn-primary mt-2">Update</button>
+  <button onclick="clearLocalStorage()" class="btn btn-danger mt-2">Clear Cache</button>
+
+
+  <div class="container mt-4">
+    <p>Maximum measured distance: <span id="maxDistance"></span></p>
+    <p>Minimum measured distance: <span id="minDistance"></span></p>
+  </div>
+
+</div>
+
+</body>
+</html>

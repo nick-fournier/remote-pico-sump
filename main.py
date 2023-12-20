@@ -1,114 +1,129 @@
-import json
-import time
+import gc
 import asyncio
-import network
-import ubinascii
-from machine import Pin
-from env import SSID, PASSWORD
-from clock import get_datetime_string, sync_time
-from reading import get_temperature, get_distance
+from utils.clock import sync_time
+from sensor import PicoSumpSensor
+from microdot.microdot import Response
+from microdot.microdot_asyncio import Microdot
+from utils.connect import connect_to_network
 
 
-heartbeat = 60
-wlan = network.WLAN(network.STA_IF)
-led = Pin("LED", Pin.OUT, value=0)
+gc.collect()
+# Server
+server = Microdot()
+Response.default_content_type = 'text/html'
 
-class PicoSumpServer:
+
+with open('./static/index.html', 'r') as f:
+    html_string = f.read()
     
-    def connect_to_network(self):
-        
-        # Connect to the network
-        wlan.active(True)        
-        wlan.config(pm = 0xa11140)  # Disable power-save mode
-        wlan.connect(ssid=SSID, key=PASSWORD)
-        mac = ubinascii.hexlify(wlan.config('mac'),':').decode()
-        
-        # Wait for connect or fail
-        wait = 10
-        while wait > 0:
-            if wlan.status() < 0 or wlan.status() >= 3:
-                break
-            wait -= 1
-            print('waiting for connection...')
-            time.sleep(2)
-        
-        # Handle connection error
-        if wlan.status() != 3:
-            raise RuntimeError('wifi connection failed')
-        else:
-            print('connected')
-            
-            ip = wlan.ifconfig()[0]
-            info = {'ip': ip, 'mac': mac}
-            
-            print('IP: ', ip, 'MAC: ', mac)
-        
-        self.netinfo = info
+# with open('style.css', 'r') as f:
+#     css_string = f.read()
+
+with open('static/script.js', 'r') as f:
+    js_string = f.read()
+
+# Webserver routes
+@server.route('/')
+async def index(request):
+    # serve the index.html file with javascript
+    return html_string
 
 
-    async def serve_client(self, reader, writer):
-        print("Client connected")
-        request_line = await reader.readline()
-        print("Request:", request_line)
-        # We are not interested in HTTP request headers, skip them
-        while await reader.readline() != b"\r\n":
-            pass
+# Static CSS/JSS
+@server.route("/static/<path:path>")
+def static(request, path):
+    if ".." in path:
+        # directory traversal is not allowed
+        return "Not found", 404
+    return js_string
+
+@server.route('/reset', methods=['POST'])
+async def reset(request):
+    if request.method != 'POST':         
+        return 'This is a POST URL only.', 400
+    
+    SumpSensor.reset()
+    
+    return 'Sensor cache reset', 200
+
+
+@server.route('/settings', methods=['POST', 'GET'])
+async def setdepth(request):
+    
+    if request.method == 'GET':
+        return SumpSensor.get_settings(), 200
+    
+    elif request.method == 'POST':
+        validated = SumpSensor.get_settings()
+        types = SumpSensor.types
+        # Check for valid request, update validated dict
+        for f in types.keys():        
+            # Attempt to convert to correct type
+            try:
+                if request.form.get(f) is None:
+                    raise ValueError                        
+                validated[f] = types[f](request.form.get(f))
                 
-        payload = json.dumps(self.current_reading)
-        writer.write('HTTP/1.0 200 OK\r\nContent-type: application/json\r\n\r\n')
-        writer.write(payload)
+            except:
+                msg = f'Invalid request, field {f} is not of type {types[f]}. Settings not updated.'
+                print(msg)
+                return msg, 400
+            
+        
+        msg = f"Updating settings for sump {request.form.get('sump_id')}, "
+        msg += f"pit depth {request.form.get('pit_depth')}, "
+        msg += f"alarm level {request.form.get('alarm_level')}"
+        print(msg)
+            
+        # Update the sensor settings
+        SumpSensor.update_settings(**request.form)
+        
+        msg = f"Succesfully updated settings."
+        return msg, 200
+    else:
+        return 'Invalid request method', 400
 
-        await writer.drain()
-        await writer.wait_closed()
-        print("Client disconnected")
-        
-            
-    async def read_sensors(self, period = heartbeat):
-        while True:
-            self.current_reading = {
-                'timestamp': get_datetime_string(),
-                'temperature': get_temperature(),
-                'distance': get_distance(),
-                'macid': self.netinfo['mac']
-            }
-            
-            time = self.current_reading['timestamp']
-            temp = self.current_reading['temperature']
-            dist = self.current_reading['distance']  
-            
-            print(f'Heartbeat -- {time}, {temp:.2f} C, {dist:.2f} cm')
-            
-            await asyncio.sleep(period)
-                
+@server.route('/data', methods = ['GET'])
+async def api_all(request):    
+    print('Client requested data')
+    return SumpSensor.get_current_data()
 
-    async def main(self):
-        
-        print('Connecting to Network...')
-        self.connect_to_network()
-                
-        # Sync the clock
-        sync_time()
-        
-        # Start the sensor reading task
-        asyncio.create_task(self.read_sensors())
-        
-        print('Setting up webserver...')
-        asyncio.create_task(asyncio.start_server(self.serve_client, "0.0.0.0", 80))
-        
-                
-        # Heartbeat LED
-        while True:
-            led.on()
-            await asyncio.sleep(0.25)
-            led.off()
-            await asyncio.sleep(heartbeat - 0.25)
 
-# Instantiate the webserver class
-WebServer = PicoSumpServer()
+@server.route('/data/<from_timestamp>', methods = ['GET'])
+async def api(request, from_timestamp):
+    
+    from_timestamp = request.args.get('from_timestamp')
+    data = SumpSensor.get_current_data(from_timestamp)
+    
+    print('Client requested data')
+    return data
+
+
+async def main():
+    
+    netinfo = connect_to_network()
+    
+    # Instantiate the webserver class
+    global SumpSensor
+    SumpSensor = PicoSumpSensor(netinfo)
+            
+    # Sync the clock
+    sync_time()
+    
+    # Start the sensor reading task
+    sensor_task = asyncio.create_task(SumpSensor.read_sensors())
+    server_task = asyncio.create_task(server.start_server("0.0.0.0", port=80))
+    
+    print('Setting up webserver...')
+    
+    await asyncio.gather(sensor_task, server_task)
+
+
+# --------------------------------------------------------------------------- #
 
 # Run the webserver asynchronously
 try:
-    asyncio.run(WebServer.main())
+    asyncio.run(main())
     
 finally:
     asyncio.new_event_loop()
