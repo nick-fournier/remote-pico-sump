@@ -2,7 +2,10 @@ import network
 import time
 import ubinascii
 import ujson
+import logging
 from env import SSID, PASSWORD
+
+logger = logging.getLogger('pico-sump')
 
 try:
     with open('settings.json', 'r') as f:
@@ -18,11 +21,11 @@ except:
 wlan = network.WLAN(network.STA_IF)
 
 def connect_to_network():
-    
-    print('Connecting to Network...')
+    # Connect to the network
+    logger.info('Connecting to Network...')
     
     if wlan.isconnected():
-        print(f'Already connected to network as {wlan.ifconfig()[0]}')
+        logger.info(f'Already connected to network as {wlan.ifconfig()[0]}')
         ip = wlan.ifconfig()[0]
         mac = ubinascii.hexlify(wlan.config('mac'),':').decode()
         
@@ -40,19 +43,17 @@ def connect_to_network():
         if wlan.status() < 0 or wlan.status() >= 3:
             break
         wait -= 1
-        print('waiting for connection...')
+        logger.info('waiting for connection...')
         time.sleep(2)
 
     # Handle connection error
     if wlan.status() != 3:
-        print('wifi connection failed')
         raise RuntimeError('wifi connection failed')
     
     else:            
         ip = wlan.ifconfig()[0]
-        print('Connected')
+        logger.info('Connected to network as %s', ip)
                 
         time.sleep(2)
-        print('IP: ', ip, 'MAC: ', mac)
     
     return {'ip': ip, 'mac': mac}

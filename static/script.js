@@ -4,12 +4,16 @@ function updateSettings() {
   var alarmLevel = document.getElementById('alarmLevel').value;
   var pitDepth = document.getElementById('pitDepth').value;
   var sumpId = document.getElementById('sumpId').value;
+  var logRate = document.getElementById('logRate').value;
+  var readingRate = document.getElementById('readingRate').value;
   
   // Construct a FormData object to send the data as form data with application/x-www-form-urlencoded encoding
   const formData = new FormData();
   formData.append('sump_id', sumpId);
   formData.append('alarm_level', alarmLevel);
   formData.append('pit_depth', pitDepth);
+  formData.append('log_rate', logRate);
+  formData.append('heartbeat', readingRate);
 
   // Send a POST request to /update_settings as form data with application/x-www-form-urlencoded encoding
   fetch('/settings', {
@@ -31,7 +35,13 @@ function padZero(num) {
 
 // Function to request a rest from /reset endpoint
 function clearLocalStorage() {
-  fetch('/reset')
+  fetch('/reset', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  })
+    // Update the plot after the POST request is complete
     .then(response => updatePlot())
     .catch(error => console.error('Error resetting:', error));
 }
@@ -48,11 +58,15 @@ function updatePlot() {
     var pitDepth = settingsJSON.pit_depth || 999;
     var alarmLevel = settingsJSON.alarm_level || 0;
     var sumpId = settingsJSON.sump_id || "Unknown";
+    var logRate = settingsJSON.log_rate || 15*3600;
+    var readingRate = settingsJSON.heartbeat || 10;
 
     // Add sumpid, pit depth, and alarm level to the HTML elements
     document.getElementById('sumpId').value = sumpId;
     document.getElementById('pitDepth').value = pitDepth;
     document.getElementById('alarmLevel').value = alarmLevel;
+    document.getElementById('logRate').value = logRate;
+    document.getElementById('readingRate').value = readingRate;
 
     // Define regular expression patterns for extracting timestamps and distances
     const timestampPattern = /\[(.*?)\s-\d+:\d+\s*,\s*([0-9.]+)\]/g;
@@ -71,17 +85,24 @@ function updatePlot() {
     // Calculate the max and min distances
     var maxDistance = Math.max(...distances);
     var minDistance = Math.min(...distances);
+    var latestWaterLevel = pitDepth - distances[distances.length - 1];
+    var latestTimestamp = timestamps[timestamps.length - 1];
+
+    // Round the values to 2 decimal places
+    latestWaterLevel = Math.round(latestWaterLevel * 100) / 100;
+    maxDistance = Math.round(maxDistance * 100) / 100;
+    minDistance = Math.round(minDistance * 100) / 100;
 
     document.getElementById('maxDistance').innerHTML = maxDistance || 0;
     document.getElementById('minDistance').innerHTML = minDistance || 0;
+    document.getElementById('latestWaterLevel').innerHTML = latestWaterLevel || 0;
+    document.getElementById('latestTimestamp').innerHTML = latestTimestamp || 0;
 
     // Convert timestamps from string to Date objects
     // timestamps = timestamps.map(timestamp => new Date(timestamp));
 
     // Water level is the pit depth minus the distance
     var waterLevels = distances.map(distance => pitDepth - distance);
-
-    console.log(waterLevels);
 
     // Create the time series mountain plot
     var trace = {
@@ -182,6 +203,14 @@ function updatePlot() {
     var sumpIdInput = document.getElementById('sumpId');
     var sumpId = sumpIdInput.value;
 
+    // The logging interval, unless trigger is met
+    var logRateInput = document.getElementById('logRate');
+    var logRate = parseFloat(logRateInput.value);
+
+    // The reading interval
+    var readingRateInput = document.getElementById('readingRate');
+    var readingRate = parseFloat(readingRateInput.value);
+
   })
   .catch(error => console.error('Error fetching data:', error));
 }
@@ -189,5 +218,5 @@ function updatePlot() {
 // Call the updatePlot function initially
 updatePlot();
 
-// Set up an interval to update the plot every 5 mins
-setInterval(updatePlot, 5 * 3600 * 1000);
+// Set up an interval to update the plot every min
+setInterval(updatePlot, 60 * 1000);

@@ -1,9 +1,15 @@
 import micropg
+import logging
 from utils.connect import connect_to_network
 from env import PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE
 
+# Logging
+logger = logging.getLogger('pico-sump')
+
+# Connect to the network
 connect_to_network()
 
+# Database ------------------------------------------------------------------ #
 class DatabaseAPI:
     def __init__(self, host, user, password, database):
         self.host = host
@@ -12,7 +18,6 @@ class DatabaseAPI:
         self.database = database
         
     def connect(self):        
-        print(f"Connecting to database {self.database}...")
         conn = micropg.connect(
             host=self.host,
             user=self.user,
@@ -24,22 +29,29 @@ class DatabaseAPI:
         
         self.check_tables(conn)
         
-        print(f"Success: connected to database {self.database}")
+        logger.info(f"Success: connected to database {self.database}")
         
         return conn
         
     def check_connection(self):
+        
+        logger.info(f"Checking connection to database {self.database}...")
+        
         try:
             self.conn.cursor().execute("SELECT 1")
+        
         except Exception as e:
-            print(f"Connection to database {self.database} lost. Reconnecting...")
+            
+            logger.warning(f"Connection to database {self.database} lost. Reconnecting...")
+            
             self.conn = self.connect()
             
         return self.conn
         
     def check_tables(self, conn):
         # Add unique constraint to sump_id in the sump_settings table
-        print('Checking database tables...')
+        logger.info(f"Checking database tables...")
+        
         try:
             cursor = conn.cursor()
             cursor.execute(
@@ -61,9 +73,12 @@ class DatabaseAPI:
                 )
                 """
             )
-            print(f"Database tables OK")
+            
+            logger.info(f"Database tables OK")
+            
         except Exception as e:
-            print(f"Failed to create tables in database {self.database}. {e}")
+            
+            logger.error(f"Failed to create tables in database {self.database}. {e}")
             
         return
     
@@ -82,9 +97,12 @@ class DatabaseAPI:
                 """
             )
             cursor.execute(cmd)
-            print(f"Set settings in database {self.database}")
+            
+            logger.info(f"Set settings in database {self.database}")
+            
         except Exception as e:
-            print(f"Failed to set settings in database {self.database}. {e}")
+            
+            logger.error(f"Failed to set settings in database {self.database}. {e}")
                         
         return
     
@@ -97,9 +115,12 @@ class DatabaseAPI:
                 "VALUES (%s, %s, %s)",
                 (sump_id, timestamp, distance)
             )
-            print(f"Logged data to database {self.database}")
+            
+            logger.info(f"Logged data to database {self.database}")
+            
         except Exception as e:
-            print(f"Failed to log data to database {self.database}. {e}")
+            
+            logger.error(f"Failed to log data to database {self.database}. {e}")
             
         return
 

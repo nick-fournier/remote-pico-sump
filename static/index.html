@@ -29,32 +29,48 @@
 <div class="container mt-4">
   <div class="row">
     <div class="col-md-6 col-sm-12">
-      <label for="pitDepth" style="color: white;">Set Pit Depth:</label>
+      <label for="pitDepth" style="color: white;">Set pit depth:</label>
       <input type="number" id="pitDepth" value="" style="color: black; width: 4em;">
     </div>
   </div>
 
   <div class="row">
     <div class="col-md-6 col-sm-12">
-      <label for="alarmLevel" style="color: white;">Set Alarm Level:</label>
+      <label for="alarmLevel" style="color: white;">Set alarm level:</label>
       <input type="number" id="alarmLevel" value="" style="color: black; width: 4em;">
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <label for="logRate" style="color: white;">Set log interval:</label>
+      <input type="number" id="logRate" value="" style="color: black; width: 4em;">
     </div>
   </div>
 
   <div class="row">
     <div class="col-md-6 col-sm-12">
-      <label for="sumpId" style="color: white;">Set Sump ID:</label>
+      <label for="readingRate" style="color: white;">Set update interval:</label>
+      <input type="number" id="readingRate" value="" style="color: black; width: 4em;">
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-6 col-sm-12">
+      <label for="sumpId" style="color: white;">Set sump ID:</label>
       <input type="text" id="sumpId" value="" style="color: black; width: 26em;">
     </div>
   </div>
 
+  
   <button onclick="updateSettings()" class="btn btn-primary mt-2">Update</button>
   <button onclick="clearLocalStorage()" class="btn btn-danger mt-2">Clear Cache</button>
 
 
   <div class="container mt-4">
-    <p>Maximum measured distance: <span id="maxDistance"></span></p>
-    <p>Minimum measured distance: <span id="minDistance"></span></p>
+    <p>Latest Water Level: <span id="latestWaterLevel"></span> cm at <span id="latestTimestamp"></span></p>
+    <p>Maximum measured distance: <span id="maxDistance"></span> cm</p>
+    <p>Minimum measured distance: <span id="minDistance"></span> cm</p>
   </div>
 
 </div>

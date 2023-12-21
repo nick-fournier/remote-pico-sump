@@ -1,14 +1,38 @@
-import gc
 import asyncio
+import logging
 from utils.clock import sync_time
 from sensor import PicoSumpSensor
 from microdot.microdot import Response
 from microdot.microdot_asyncio import Microdot
 from utils.connect import connect_to_network
+from rotating_log import RotatingFileHandler
 
+# Logging ------------------------------------------------------------------- #
+# Create logger
+logger = logging.getLogger('pico-sump')
+logger.setLevel(logging.DEBUG)
 
-gc.collect()
-# Server
+# Create console handler and set level to debug
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.DEBUG)
+
+# Create file handler and set level to error
+# file_handler = logging.FileHandler("error.log", mode="w")
+file_handler = RotatingFileHandler("logfile.log", maxBytes=10000, backupCount=0)
+file_handler.setLevel(logging.DEBUG)
+
+# Create a formatter
+formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+
+# Add formatter to the handlers
+stream_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(stream_handler)
+logger.addHandler(file_handler)
+
+# Server -------------------------------------------------------------------- #
 server = Microdot()
 Response.default_content_type = 'text/html'
 
@@ -25,6 +49,7 @@ with open('static/script.js', 'r') as f:
 # Webserver routes
 @server.route('/')
 async def index(request):
+    await SumpSensor.read_sensors(loop=False)
     # serve the index.html file with javascript
     return html_string
 
@@ -47,6 +72,16 @@ async def reset(request):
     return 'Sensor cache reset', 200
 
 
+@server.route('/log', methods=['GET'])
+async def log(request):
+    def log_generator():
+        with open('logfile.log', 'r') as f:
+            for line in f:
+                yield line + '<br>\n'
+        
+    return log_generator()
+
+
 @server.route('/settings', methods=['POST', 'GET'])
 async def setdepth(request):
     
@@ -56,6 +91,8 @@ async def setdepth(request):
     elif request.method == 'POST':
         validated = SumpSensor.get_settings()
         types = SumpSensor.types
+        
+        update_msg = 'Updated setings: '
         # Check for valid request, update validated dict
         for f in types.keys():        
             # Attempt to convert to correct type
@@ -63,20 +100,17 @@ async def setdepth(request):
                 if request.form.get(f) is None:
                     raise ValueError                        
                 validated[f] = types[f](request.form.get(f))
+                update_msg += f'{f}={validated[f]}, '
                 
             except:
                 msg = f'Invalid request, field {f} is not of type {types[f]}. Settings not updated.'
-                print(msg)
+                logger.error(msg)
                 return msg, 400
             
-        
-        msg = f"Updating settings for sump {request.form.get('sump_id')}, "
-        msg += f"pit depth {request.form.get('pit_depth')}, "
-        msg += f"alarm level {request.form.get('alarm_level')}"
-        print(msg)
+        logger.info(update_msg)
             
         # Update the sensor settings
-        SumpSensor.update_settings(**request.form)
+        await SumpSensor.update_settings(**request.form)
         
         msg = f"Succesfully updated settings."
         return msg, 200
@@ -85,7 +119,9 @@ async def setdepth(request):
 
 @server.route('/data', methods = ['GET'])
 async def api_all(request):    
-    print('Client requested data')
+
+    logger.info('Client requested data')
+    
     return SumpSensor.get_current_data()
 
 
@@ -95,7 +131,8 @@ async def api(request, from_timestamp):
     from_timestamp = request.args.get('from_timestamp')
     data = SumpSensor.get_current_data(from_timestamp)
     
-    print('Client requested data')
+    logger.info('Client requested data')
+    
     return data
 
 
@@ -114,14 +151,12 @@ async def main():
     sensor_task = asyncio.create_task(SumpSensor.read_sensors())
     server_task = asyncio.create_task(server.start_server("0.0.0.0", port=80))
     
-    print('Setting up webserver...')
+    logger.info('Setting up webserver...')
     
     await asyncio.gather(sensor_task, server_task)
 
 
-# --------------------------------------------------------------------------- #
-
-# Run the webserver asynchronously
+# Run the webserver synchronously ------------------------------------------- #
 try:
     asyncio.run(main())
     
