@@ -69,6 +69,10 @@ def sync_time():
     attempts = 1
     
     while attempts < 5:
+        
+        if ntptime.time() == utime.time():
+            logger.info("Time already synchronized. Local time after synchronization: %s" %get_datetime_string())
+            return
         try:
             # Sync the time with the ntp server            
             ntptime.settime()

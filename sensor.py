@@ -4,6 +4,7 @@ import logging
 from machine import Pin, ADC
 from database import Database
 from utils import clock#, statistics
+import utils.connect as connection
 import utime
 import ujson
 
@@ -29,8 +30,9 @@ class PicoSumpSensor:
     sump_id = "Unknown" # Sump ID
     alarm_level = 0     # Target water level    
     pit_depth = 0       # User set reference depth if different from max measured.
-    heartbeat = 1       # Seconds between readings
-    log_rate = 15 * 60  # Seconds between log entries
+    heartbeat = 5       # Seconds between readings
+    log_rate = 1 * 60   # Seconds between log entries
+    db_logging = True   # Toggle database logging on/off
 
     # Current values
     timestamp = None    # Current timestamp
@@ -38,7 +40,7 @@ class PicoSumpSensor:
     water_level = 0     # Current water level (pit_depth - distance)
     
     # Statistics
-    threshold = 1       # Threshold for triggering data log, in cm
+    threshold = 999     # Threshold for triggering data log, in cm
 
     # Sensor data
     stack = []          # List of tuples of (timestamp, distance) to analyze from
@@ -54,7 +56,9 @@ class PicoSumpSensor:
         'pit_depth': float,
         'alarm_level': float,
         'heartbeat': int,
-        'log_rate': int
+        'log_rate': int,
+        'db_toggle': bool,
+        'threshold': float,
         }
 
     
@@ -73,7 +77,9 @@ class PicoSumpSensor:
                 'alarm_level': self.alarm_level,
                 'pit_depth': self.pit_depth,
                 'heartbeat': self.heartbeat,
-                'log_rate': self.log_rate
+                'log_rate': self.log_rate,
+                'db_logging': self.db_logging,
+                'threshold': self.threshold
             }
             with open('saved_settings.json', 'w') as f:
                 f.write(ujson.dumps(settings))
@@ -91,25 +97,29 @@ class PicoSumpSensor:
     
     @staticmethod
     def get_distance(verbose = False):
-        trigger.low()
-    
-        utime.sleep_us(2)
-        trigger.high()
-    
-        utime.sleep_us(5)
-        trigger.low()
-    
-        signaloff = 0
-        signalon = 0
-    
-        while echo.value() == 0:
-            signaloff = utime.ticks_us()
         
-        while echo.value() == 1:
-            signalon = utime.ticks_us()
+        try:
+            trigger.low()
+        
+            utime.sleep_us(2)
+            trigger.high()
+        
+            utime.sleep_us(5)
+            trigger.low()
+        
+            signaloff = 0
+            signalon = 0
+        
+            while echo.value() == 0:
+                signaloff = utime.ticks_us()
             
-        timepassed = signalon - signaloff
-        distance = (timepassed * 0.0343) / 2
+            while echo.value() == 1:
+                signalon = utime.ticks_us()
+                
+            timepassed = signalon - signaloff
+            distance = (timepassed * 0.0343) / 2
+        except:
+            distance = -999
         
         if verbose == True:
             logger.info("The distance from object is %s cm", distance)
@@ -135,9 +145,19 @@ class PicoSumpSensor:
             from_time = clock.string_to_datetime(from_timestamp)
         else:
             from_time = 0
+            
+        # If streaming, create a generator to stream the data
+        if stream:
+            def readings_generator():
+                for t, d in self.stack:
+                    if t > from_time:
+                        timestamp = clock.datetime_to_string(t)
+                        yield f"[{timestamp}, {d}]" + "\n"
+                        
+            return readings_generator()
         
         # If not streaming, return the data stack as a list
-        if not stream:
+        else:
             readings = []
             for t, d in self.stack:
                 if t > from_time:
@@ -145,16 +165,6 @@ class PicoSumpSensor:
                     readings.append((timestamp, d))
                     
             return readings
-        
-        # Create a generator to stream the data
-        else:            
-            def readings_generator():
-                for t, d in self.stack:
-                    if t > from_time:
-                        timestamp = clock.datetime_to_string(t)
-                        yield f"[{timestamp}, {d}]" + "\n"
-            
-            return readings_generator()
             
     def get_settings(self):
         return {
@@ -162,7 +172,8 @@ class PicoSumpSensor:
             'pit_depth': self.pit_depth,
             'alarm_level': self.alarm_level,
             'heartbeat': self.heartbeat,
-            'log_rate': self.log_rate
+            'log_rate': self.log_rate,
+            'threshold': self.threshold,
         }
         
     def update_stack(self):
@@ -208,6 +219,10 @@ class PicoSumpSensor:
         iter = 0
         
         while True:
+            
+            # Check for network connection
+            connection.check_network()
+            
             # Get temp reading & convert to Fahrenheit            
             self.distance = self.get_distance()
             self.timestamp = clock.get_datetime()
@@ -223,7 +238,8 @@ class PicoSumpSensor:
                 f'{timestamp_str}',
                 f'ID: {self.sump_id},',
                 f'Distance: {self.distance:.2f} cm,',
-                f'Memory use: {mem_free:.0f}%'
+                f'Memory use: {mem_free:.0f}%',
+                f'IP: {self.netinfo["ip"]}',
             ]
             
             if not loop:
@@ -235,11 +251,11 @@ class PicoSumpSensor:
             self.update_stack()
             
             # Log to database if change > threshold
-            if change > 1:
+            if change > self.threshold:
                 logger.info(f"Detected change > {self.threshold} cm. Logging to database.")
             
             # Log data to database if true
-            if change > 1 or iter * self.heartbeat >= self.log_rate:  
+            if change > self.threshold or iter * self.heartbeat >= self.log_rate:  
                 timestamp_str = clock.datetime_to_string(self.timestamp)
                 
                 await Database.log_data(

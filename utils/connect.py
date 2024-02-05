@@ -20,22 +20,29 @@ except:
 # network.hostname(SETTINGS['SUMP_ID'])
 wlan = network.WLAN(network.STA_IF)
 
+def get_netinfo():
+    return {'ip': wlan.ifconfig()[0], 'mac': ubinascii.hexlify(wlan.config('mac'),':').decode()}
+
+def check_network():
+    # Check if connected to network
+    if wlan.isconnected():
+        return
+    else:
+        return connect_to_network()
+        
+
 def connect_to_network():
     # Connect to the network
     logger.info('Connecting to Network...')
     
     if wlan.isconnected():
-        logger.info(f'Already connected to network as {wlan.ifconfig()[0]}')
-        ip = wlan.ifconfig()[0]
-        mac = ubinascii.hexlify(wlan.config('mac'),':').decode()
-        
-        return {'ip': ip, 'mac': mac}
+        logger.info(f'Already connected to network as {wlan.ifconfig()[0]}')        
+        return
         
     # Connect to the network
     wlan.active(True)
     wlan.config(pm = 0xa11140)  # Disable power-save mode
     wlan.connect(ssid=SSID, key=PASSWORD)
-    mac = ubinascii.hexlify(wlan.config('mac'),':').decode()
     
     # Wait for connect or fail
     wait = 10
@@ -56,4 +63,4 @@ def connect_to_network():
                 
         time.sleep(2)
     
-    return {'ip': ip, 'mac': mac}
+    return

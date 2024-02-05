@@ -6,6 +6,7 @@ function updateSettings() {
   var sumpId = document.getElementById('sumpId').value;
   var logRate = document.getElementById('logRate').value;
   var readingRate = document.getElementById('readingRate').value;
+  var threshold = document.getElementById('threshold').value;
   
   // Construct a FormData object to send the data as form data with application/x-www-form-urlencoded encoding
   const formData = new FormData();
@@ -14,6 +15,7 @@ function updateSettings() {
   formData.append('pit_depth', pitDepth);
   formData.append('log_rate', logRate);
   formData.append('heartbeat', readingRate);
+  formData.append('threshold', threshold);
 
   // Send a POST request to /update_settings as form data with application/x-www-form-urlencoded encoding
   fetch('/settings', {
@@ -67,6 +69,7 @@ function updatePlot() {
     document.getElementById('alarmLevel').value = alarmLevel;
     document.getElementById('logRate').value = logRate;
     document.getElementById('readingRate').value = readingRate;
+    document.getElementById('threshold').value = settingsJSON.threshold || 1;
 
     // Define regular expression patterns for extracting timestamps and distances
     const timestampPattern = /\[(.*?)\s-\d+:\d+\s*,\s*([0-9.]+)\]/g;

@@ -1,11 +1,11 @@
 import asyncio
 import logging
+import utils.connect as connection
+from logging.handlers import MemoryHandler
 from utils.clock import sync_time
 from sensor import PicoSumpSensor
-from microdot.microdot import Response
+from microdot import Response
 from microdot.microdot_asyncio import Microdot
-from utils.connect import connect_to_network
-from rotating_log import RotatingFileHandler
 
 # Logging ------------------------------------------------------------------- #
 # Create logger
@@ -16,21 +16,19 @@ logger.setLevel(logging.DEBUG)
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.DEBUG)
 
-# Create file handler and set level to error
-# file_handler = logging.FileHandler("error.log", mode="w")
-file_handler = RotatingFileHandler("logfile.log", maxBytes=10000, backupCount=0)
-file_handler.setLevel(logging.DEBUG)
+# Create memory handler and set capacity to 100 entries
+memory_handler = MemoryHandler(capacity=100, flushLevel=logging.ERROR)
 
 # Create a formatter
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
 
 # Add formatter to the handlers
 stream_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
+memory_handler.setFormatter(formatter)
 
 # Add handlers to logger
 logger.addHandler(stream_handler)
-logger.addHandler(file_handler)
+logger.addHandler(memory_handler)
 
 # Server -------------------------------------------------------------------- #
 server = Microdot()
@@ -74,10 +72,16 @@ async def reset(request):
 
 @server.route('/log', methods=['GET'])
 async def log(request):
+    
+    # output = ''
+    # for record in memory_handler.buffer:
+    #     output += formatter.format(record) + '\n'
+    
+    # return output, 200
+    
     def log_generator():
-        with open('logfile.log', 'r') as f:
-            for line in f:
-                yield line + '<br>\n'
+        for log_msg in memory_handler.buffer:
+            yield log_msg + '\n <br>'
         
     return log_generator()
 
@@ -138,8 +142,10 @@ async def api(request, from_timestamp):
 
 async def main():
     
-    netinfo = connect_to_network()
+    connection.check_network()
     
+    netinfo = connection.get_netinfo()
+        
     # Instantiate the webserver class
     global SumpSensor
     SumpSensor = PicoSumpSensor(netinfo)
