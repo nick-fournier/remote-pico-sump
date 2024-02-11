@@ -16,8 +16,8 @@ logger.setLevel(logging.DEBUG)
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.DEBUG)
 
-# Create memory handler and set capacity to 100 entries
-memory_handler = MemoryHandler(capacity=100, flushLevel=logging.ERROR)
+# Create memory handler and set capacity to 50 entries
+memory_handler = MemoryHandler(capacity=50, flushLevel=logging.ERROR, target=stream_handler, flushOnClose=True)
 
 # Create a formatter
 formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
@@ -102,16 +102,16 @@ async def setdepth(request):
             # Attempt to convert to correct type
             try:
                 if request.form.get(f) is None:
-                    raise ValueError                        
+                    raise ValueError
                 validated[f] = types[f](request.form.get(f))
                 update_msg += f'{f}={validated[f]}, '
                 
             except:
-                msg = f'Invalid request, field {f} is not of type {types[f]}. Settings not updated.'
+                msg = f'Invalid request, field {f} is not in request {request.keys()} or not the right type {types[f]}. Settings not updated.'
                 logger.error(msg)
                 return msg, 400
-            
-        logger.info(update_msg)
+
+        logger.warning(update_msg)
             
         # Update the sensor settings
         await SumpSensor.update_settings(**request.form)

@@ -30,7 +30,7 @@ class PicoSumpSensor:
     sump_id = "Unknown" # Sump ID
     alarm_level = 0     # Target water level    
     pit_depth = 0       # User set reference depth if different from max measured.
-    heartbeat = 5       # Seconds between readings
+    heartbeat = 1       # Seconds between readings
     log_rate = 1 * 60   # Seconds between log entries
     db_logging = True   # Toggle database logging on/off
 
@@ -47,8 +47,8 @@ class PicoSumpSensor:
     
     # Main program requires about 185kb of memory
     # This leaves about 80kb for the stack minus whatever is used by momemtary web requests
-    # 1 hour of data or 500 readings, whichever is less
-    max_stacklength = min(3600 / heartbeat, 500)
+    # 1 hour of data or 100 readings, whichever is less
+    max_stacklength = min(3600 / heartbeat, 100)
     
     # Specify the types of the settings to be validated
     types = {
@@ -57,7 +57,7 @@ class PicoSumpSensor:
         'alarm_level': float,
         'heartbeat': int,
         'log_rate': int,
-        'db_toggle': bool,
+        'db_logging': bool,
         'threshold': float,
         }
 
@@ -203,12 +203,13 @@ class PicoSumpSensor:
         # Update the local settings
         self.set_values(**settings)
         
-        # Update the database
-        Database.update_settings(
-            sump_id=self.sump_id, 
-            pit_depth=self.pit_depth,
-            alarm_level=self.alarm_level
-        )
+        if self.db_logging:
+            # Update the database
+            Database.update_settings(
+                sump_id=self.sump_id, 
+                pit_depth=self.pit_depth,
+                alarm_level=self.alarm_level
+            )
 
     def reset(self):
         # Remove all but latest reading from stack
@@ -252,10 +253,13 @@ class PicoSumpSensor:
             
             # Log to database if change > threshold
             if change > self.threshold:
-                logger.info(f"Detected change > {self.threshold} cm. Logging to database.")
+                logger.warning(f"Detected change > {self.threshold} cm. Logging to database.")
             
             # Log data to database if true
-            if change > self.threshold or iter * self.heartbeat >= self.log_rate:  
+            if (
+                self.db_logging and 
+                (change > self.threshold or iter * self.heartbeat >= self.log_rate)
+            ):
                 timestamp_str = clock.datetime_to_string(self.timestamp)
                 
                 await Database.log_data(

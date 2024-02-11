@@ -7,6 +7,7 @@ function updateSettings() {
   var logRate = document.getElementById('logRate').value;
   var readingRate = document.getElementById('readingRate').value;
   var threshold = document.getElementById('threshold').value;
+  var dbLogging = document.getElementById('dbLogging').checked;
   
   // Construct a FormData object to send the data as form data with application/x-www-form-urlencoded encoding
   const formData = new FormData();
@@ -16,6 +17,7 @@ function updateSettings() {
   formData.append('log_rate', logRate);
   formData.append('heartbeat', readingRate);
   formData.append('threshold', threshold);
+  formData.append('db_logging', dbLogging);
 
   // Send a POST request to /update_settings as form data with application/x-www-form-urlencoded encoding
   fetch('/settings', {
@@ -62,6 +64,7 @@ function updatePlot() {
     var sumpId = settingsJSON.sump_id || "Unknown";
     var logRate = settingsJSON.log_rate || 15*3600;
     var readingRate = settingsJSON.heartbeat || 10;
+    var dbLogging = settingsJSON.db_logging || false;
 
     // Add sumpid, pit depth, and alarm level to the HTML elements
     document.getElementById('sumpId').value = sumpId;
@@ -70,6 +73,7 @@ function updatePlot() {
     document.getElementById('logRate').value = logRate;
     document.getElementById('readingRate').value = readingRate;
     document.getElementById('threshold').value = settingsJSON.threshold || 1;
+    document.getElementById('dbLogging').checked = dbLogging;
 
     // Define regular expression patterns for extracting timestamps and distances
     const timestampPattern = /\[(.*?)\s-\d+:\d+\s*,\s*([0-9.]+)\]/g;
@@ -213,6 +217,9 @@ function updatePlot() {
     // The reading interval
     var readingRateInput = document.getElementById('readingRate');
     var readingRate = parseFloat(readingRateInput.value);
+
+    // Turn on or off database logging
+    var dbLogging = document.getElementById('dbLogging');
 
   })
   .catch(error => console.error('Error fetching data:', error));

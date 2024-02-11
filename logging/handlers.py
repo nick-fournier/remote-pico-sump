@@ -164,18 +164,18 @@ class MemoryHandler(BufferingHandler):
         """
         self.target = target
 
-    def flush(self):
-        """
-        For a MemoryHandler, flushing means just sending the buffered
-        records to the target, if there is one. Override if you want
-        different behaviour.
+    # def flush(self):
+    #     """
+    #     For a MemoryHandler, flushing means just sending the buffered
+    #     records to the target, if there is one. Override if you want
+    #     different behaviour.
 
-        The record buffer is only cleared if a target has been set.
-        """
-        if self.target:
-            for record in self.buffer:
-                self.target.handle(record)
-            self.buffer.clear()
+    #     The record buffer is only cleared if a target has been set.
+    #     """
+    #     if self.target:
+    #         for record in self.buffer:
+    #             self.target.handle(record)
+    #         self.buffer.clear()
 
     def close(self):
         """
